@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Insurance IT Poker Multiplayer</title>
 
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
@@ -68,26 +69,30 @@ button { background:#22d3ee; cursor:pointer; }
 
 <h1>🃏 Insurance IT Poker</h1>
 
+<!-- Join screen -->
 <div id="join">
   <input id="name" placeholder="Your name">
   <input id="room" placeholder="Room code">
   <button onclick="join()">Join</button>
 </div>
 
+<!-- Game screen -->
 <div id="game" class="hidden">
   <h3>Room: <span id="roomLabel"></span></h3>
 
   <div class="table" id="cards"></div>
 
   <button onclick="reveal()">Show Votes</button>
-  <button onclick="clearVotes()">Clear</button>
+  <button onclick="clearVotes()">Clear Votes</button>
+  <button onclick="copyLink()">Copy Share Link</button>
+  <button onclick="leaveGame()">Leave Game</button>
 
   <h3 id="avg"></h3>
   <div class="players" id="players"></div>
 </div>
 
 <script>
-// 🔥 replace with your firebase config
+// 🔥 Replace with your Firebase config
 const firebaseConfig = {
     apiKey: "AIzaSyCuxdwsW_kaDwiJk8W7i-5WdpwRVL5_cko",
     authDomain: "pointing-poker-8ef91.firebaseapp.com",
@@ -105,116 +110,19 @@ const db = firebase.database();
 const values = ["1","2","3","5","8","13","21","?"];
 
 let room = "";
-let playerId = Math.random().toString(36).slice(2);
+let playerId;
 let revealState = false;
 
-// ✅ read room from URL
+// Reset on page load
+window.onload = () => {
+  playerId = Math.random().toString(36).slice(2); // new random ID
+  document.getElementById("name").value = "";
+  if (!new URLSearchParams(window.location.search).get("room")) {
+    document.getElementById("room").value = "";
+  }
+};
+
+// Read room from URL
 const params = new URLSearchParams(window.location.search);
 const urlRoom = params.get("room");
-if (urlRoom) document.getElementById("room").value = urlRoom;
-
-function join() {
-  const name = document.getElementById("name").value.trim();
-  room = document.getElementById("room").value.trim();
-
-  if(!name || !room) return alert("Enter name + room");
-
-  document.getElementById("join").classList.add("hidden");
-  document.getElementById("game").classList.remove("hidden");
-  document.getElementById("roomLabel").textContent = room;
-
-  // update URL to shareable link
-  const shareURL = `${window.location.origin}${window.location.pathname}?room=${room}`;
-  window.history.replaceState({}, "", shareURL);
-
-  db.ref(`rooms/${room}/players/${playerId}`).set({name,vote:null});
-
-  renderCards();
-  listen();
-}
-
-function copyLink(){
-  const link = window.location.href;
-  navigator.clipboard.writeText(link);
-  alert("Link copied!");
-}
-
-function renderCards(){
-  const table = document.getElementById("cards");
-  table.innerHTML="";
-  values.forEach(v=>{
-    const c=document.createElement("div");
-    c.className="card";
-    c.textContent=v;
-    c.onclick=()=>{
-      db.ref(`rooms/${room}/players/${playerId}/vote`).set(v);
-      document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected"));
-      c.classList.add("selected");
-    };
-    table.appendChild(c);
-  });
-}
-
-function listen(){
-  db.ref(`rooms/${room}`).on("value",snap=>{
-    const data=snap.val();
-    if(!data) return;
-
-    revealState=data.reveal||false;
-
-    const players=data.players||{};
-    const container=document.getElementById("players");
-    container.innerHTML="";
-
-    let nums=[];
-
-    Object.values(players).forEach(p=>{
-      const div=document.createElement("div");
-      let vote="🂠";
-      if(!p.vote) vote="…";
-      if(revealState && p.vote) vote=p.vote;
-
-      if(!isNaN(p.vote)) nums.push(Number(p.vote));
-
-      div.textContent=`${p.name}: ${vote}`;
-      container.appendChild(div);
-    });
-
-    if(revealState && nums.length){
-      const avg=(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(1);
-      document.getElementById("avg").textContent=`Average: ${avg}`;
-      confetti();
-    } else {
-      document.getElementById("avg").textContent="";
-    }
-  });
-}
-
-function reveal(){
-  db.ref(`rooms/${room}/reveal`).set(true);
-}
-
-function clearVotes(){
-  db.ref(`rooms/${room}/players`).once("value",snap=>{
-    snap.forEach(p=>p.ref.child("vote").set(null));
-  });
-  db.ref(`rooms/${room}/reveal`).set(false);
-}
-
-function confetti(){
-  for(let i=0;i<40;i++){
-    const d=document.createElement("div");
-    d.textContent="🎉";
-    d.style.position="fixed";
-    d.style.left=Math.random()*100+"vw";
-    d.style.top="-20px";
-    document.body.appendChild(d);
-    d.animate([{transform:"translateY(0)"},{transform:"translateY(100vh)"}],
-              {duration:2000});
-    setTimeout(()=>d.remove(),2000);
-  }
-}
-</script>
-
-</body>
-</html>
+if (urlRoom) document
