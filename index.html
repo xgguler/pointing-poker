@@ -108,6 +108,11 @@ let room = "";
 let playerId = Math.random().toString(36).slice(2);
 let revealState = false;
 
+// ✅ read room from URL
+const params = new URLSearchParams(window.location.search);
+const urlRoom = params.get("room");
+if (urlRoom) document.getElementById("room").value = urlRoom;
+
 function join() {
   const name = document.getElementById("name").value.trim();
   room = document.getElementById("room").value.trim();
@@ -118,14 +123,25 @@ function join() {
   document.getElementById("game").classList.remove("hidden");
   document.getElementById("roomLabel").textContent = room;
 
+  // update URL to shareable link
+  const shareURL = `${window.location.origin}${window.location.pathname}?room=${room}`;
+  window.history.replaceState({}, "", shareURL);
+
   db.ref(`rooms/${room}/players/${playerId}`).set({name,vote:null});
 
   renderCards();
   listen();
 }
 
+function copyLink(){
+  const link = window.location.href;
+  navigator.clipboard.writeText(link);
+  alert("Link copied!");
+}
+
 function renderCards(){
   const table = document.getElementById("cards");
+  table.innerHTML="";
   values.forEach(v=>{
     const c=document.createElement("div");
     c.className="card";
@@ -155,7 +171,6 @@ function listen(){
     Object.values(players).forEach(p=>{
       const div=document.createElement("div");
       let vote="🂠";
-
       if(!p.vote) vote="…";
       if(revealState && p.vote) vote=p.vote;
 
@@ -181,14 +196,11 @@ function reveal(){
 
 function clearVotes(){
   db.ref(`rooms/${room}/players`).once("value",snap=>{
-    snap.forEach(p=>{
-      p.ref.child("vote").set(null);
-    });
+    snap.forEach(p=>p.ref.child("vote").set(null));
   });
   db.ref(`rooms/${room}/reveal`).set(false);
 }
 
-// 🎉 confetti
 function confetti(){
   for(let i=0;i<40;i++){
     const d=document.createElement("div");
@@ -196,7 +208,6 @@ function confetti(){
     d.style.position="fixed";
     d.style.left=Math.random()*100+"vw";
     d.style.top="-20px";
-    d.style.fontSize="20px";
     document.body.appendChild(d);
     d.animate([{transform:"translateY(0)"},{transform:"translateY(100vh)"}],
               {duration:2000});
