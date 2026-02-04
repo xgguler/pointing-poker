@@ -2,196 +2,206 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Insurance IT Poker</title>
+<title>Insurance IT Poker Multiplayer</title>
+
+<script src="https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js"></script>
+
 <style>
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: Arial;
   background: linear-gradient(135deg,#0f172a,#1e293b);
   color: white;
   text-align: center;
 }
 
-h1 { margin-top: 30px; }
-
 .hidden { display: none; }
 
-.join {
-  margin-top: 100px;
-}
-
-input {
+input, button {
   padding: 12px;
-  font-size: 16px;
+  margin: 6px;
   border-radius: 8px;
   border: none;
-}
-
-button {
-  padding: 12px 18px;
-  margin: 10px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
   font-size: 16px;
-  background: #22d3ee;
-  transition: 0.2s;
 }
 
-button:hover { transform: scale(1.05); }
+button { background:#22d3ee; cursor:pointer; }
 
 .table {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin: 40px;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:14px;
+  margin:40px;
 }
 
 .card {
-  width: 90px;
-  height: 130px;
-  background: #38bdf8;
-  color: #0f172a;
-  border-radius: 14px;
-  font-size: 30px;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: 0.25s;
-  animation: float 3s infinite ease-in-out;
+  width:90px;
+  height:130px;
+  background:#38bdf8;
+  border-radius:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:30px;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.2s;
+  animation:float 3s infinite ease-in-out;
 }
 
-.card:hover {
-  transform: translateY(-10px) scale(1.1);
-}
+.card:hover { transform:scale(1.1); }
 
-.selected {
-  background: #22c55e !important;
-  color: white;
-  transform: scale(1.2);
-}
+.selected { background:#22c55e; color:white; }
 
-.players {
-  margin-top: 20px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-}
-
-.player {
-  background: #334155;
-  padding: 10px 16px;
-  border-radius: 10px;
-  animation: fadeIn 0.4s ease;
-}
+.players { margin-top:20px; }
 
 @keyframes float {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-
-@keyframes fadeIn {
-  from { opacity:0; transform: translateY(10px); }
-  to { opacity:1; transform: translateY(0); }
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-8px)}
 }
 </style>
 </head>
 
 <body>
 
-<h1>🃏 Insurance IT Pointing Poker</h1>
+<h1>🃏 Insurance IT Poker</h1>
 
-<div class="join" id="joinScreen">
-  <input id="nameInput" placeholder="Enter your name">
-  <br>
-  <button onclick="join()">Join Game</button>
+<div id="join">
+  <input id="name" placeholder="Your name">
+  <input id="room" placeholder="Room code">
+  <button onclick="join()">Join</button>
 </div>
 
 <div id="game" class="hidden">
+  <h3>Room: <span id="roomLabel"></span></h3>
 
   <div class="table" id="cards"></div>
 
-  <div>
-    <button onclick="showVotes()">Show Votes</button>
-    <button onclick="clearVotes()">Clear Votes</button>
-  </div>
+  <button onclick="reveal()">Show Votes</button>
+  <button onclick="clearVotes()">Clear</button>
 
-  <h3>Players</h3>
+  <h3 id="avg"></h3>
   <div class="players" id="players"></div>
-
 </div>
 
 <script>
+// 🔥 replace with your firebase config
+const firebaseConfig = {
+    apiKey: "AIzaSyCuxdwsW_kaDwiJk8W7i-5WdpwRVL5_cko",
+    authDomain: "pointing-poker-8ef91.firebaseapp.com",
+    projectId: "pointing-poker-8ef91",
+    databaseURL: "https://pointing-poker-8ef91-default-rtdb.europe-west1.firebasedatabase.app/",
+    storageBucket: "pointing-poker-8ef91.firebasestorage.app",
+    messagingSenderId: "207111296808",
+    appId: "1:207111296808:web:4e70f8f832a0e3fd97621d",
+    measurementId: "G-S0WJX04G6P"
+  };
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 const values = ["1","2","3","5","8","13","21","?"];
-let players = [];
-let reveal = false;
-let currentPlayer = null;
+
+let room = "";
+let playerId = Math.random().toString(36).slice(2);
+let revealState = false;
 
 function join() {
-  const name = document.getElementById("nameInput").value.trim();
-  if (!name) return alert("Enter a name");
+  const name = document.getElementById("name").value.trim();
+  room = document.getElementById("room").value.trim();
 
-  currentPlayer = { name, vote: null };
-  players.push(currentPlayer);
+  if(!name || !room) return alert("Enter name + room");
 
-  document.getElementById("joinScreen").classList.add("hidden");
+  document.getElementById("join").classList.add("hidden");
   document.getElementById("game").classList.remove("hidden");
+  document.getElementById("roomLabel").textContent = room;
+
+  db.ref(`rooms/${room}/players/${playerId}`).set({name,vote:null});
 
   renderCards();
-  renderPlayers();
+  listen();
 }
 
-function renderCards() {
+function renderCards(){
   const table = document.getElementById("cards");
-  table.innerHTML = "";
-
-  values.forEach(v => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.textContent = v;
-
-    card.onclick = () => {
-      currentPlayer.vote = v;
-      document.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
-      card.classList.add("selected");
-      renderPlayers();
+  values.forEach(v=>{
+    const c=document.createElement("div");
+    c.className="card";
+    c.textContent=v;
+    c.onclick=()=>{
+      db.ref(`rooms/${room}/players/${playerId}/vote`).set(v);
+      document.querySelectorAll(".card").forEach(x=>x.classList.remove("selected"));
+      c.classList.add("selected");
     };
-
-    table.appendChild(card);
+    table.appendChild(c);
   });
 }
 
-function renderPlayers() {
-  const container = document.getElementById("players");
-  container.innerHTML = "";
+function listen(){
+  db.ref(`rooms/${room}`).on("value",snap=>{
+    const data=snap.val();
+    if(!data) return;
 
-  players.forEach(p => {
-    const div = document.createElement("div");
-    div.className = "player";
+    revealState=data.reveal||false;
 
-    let voteText = "🂠";
-    if (reveal && p.vote) voteText = p.vote;
-    if (!p.vote) voteText = "…";
+    const players=data.players||{};
+    const container=document.getElementById("players");
+    container.innerHTML="";
 
-    div.textContent = `${p.name}: ${voteText}`;
-    container.appendChild(div);
+    let nums=[];
+
+    Object.values(players).forEach(p=>{
+      const div=document.createElement("div");
+      let vote="🂠";
+
+      if(!p.vote) vote="…";
+      if(revealState && p.vote) vote=p.vote;
+
+      if(!isNaN(p.vote)) nums.push(Number(p.vote));
+
+      div.textContent=`${p.name}: ${vote}`;
+      container.appendChild(div);
+    });
+
+    if(revealState && nums.length){
+      const avg=(nums.reduce((a,b)=>a+b,0)/nums.length).toFixed(1);
+      document.getElementById("avg").textContent=`Average: ${avg}`;
+      confetti();
+    } else {
+      document.getElementById("avg").textContent="";
+    }
   });
 }
 
-function showVotes() {
-  reveal = true;
-  renderPlayers();
+function reveal(){
+  db.ref(`rooms/${room}/reveal`).set(true);
 }
 
-function clearVotes() {
-  reveal = false;
-  players.forEach(p => p.vote = null);
-  document.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
-  renderPlayers();
+function clearVotes(){
+  db.ref(`rooms/${room}/players`).once("value",snap=>{
+    snap.forEach(p=>{
+      p.ref.child("vote").set(null);
+    });
+  });
+  db.ref(`rooms/${room}/reveal`).set(false);
+}
+
+// 🎉 confetti
+function confetti(){
+  for(let i=0;i<40;i++){
+    const d=document.createElement("div");
+    d.textContent="🎉";
+    d.style.position="fixed";
+    d.style.left=Math.random()*100+"vw";
+    d.style.top="-20px";
+    d.style.fontSize="20px";
+    document.body.appendChild(d);
+    d.animate([{transform:"translateY(0)"},{transform:"translateY(100vh)"}],
+              {duration:2000});
+    setTimeout(()=>d.remove(),2000);
+  }
 }
 </script>
 
